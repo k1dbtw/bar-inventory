@@ -4,6 +4,8 @@ A native iOS app for bartenders to track bar stock, expiration dates, and write-
 
 Built with **SwiftUI + SwiftData**, fully offline, no backend, no third-party dependencies.
 
+**Don't own a Mac?** See [SIDELOADING.md](SIDELOADING.md) — GitHub Actions builds an installable `.ipa` on every push, no Xcode required on your end.
+
 ## Requirements
 
 - Xcode 16 or later

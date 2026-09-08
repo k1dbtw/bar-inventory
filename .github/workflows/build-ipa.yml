@@ -1,0 +1,58 @@
+name: Build IPA for sideloading
+
+on:
+  push:
+    branches:
+      - claude/bar-inventory-ios-app-f09oxf
+    paths:
+      - "BarInventory/**"
+      - "BarInventory.xcodeproj/**"
+      - ".github/workflows/build-ipa.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select latest available Xcode
+        run: |
+          ls /Applications | grep -i xcode
+          LATEST_XCODE=$(ls -d /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST_XCODE" ]; then
+            LATEST_XCODE="/Applications/Xcode.app"
+          fi
+          echo "Using $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE"
+          xcodebuild -version
+
+      - name: Build unsigned .app for iOS
+        run: |
+          xcodebuild \
+            -project BarInventory.xcodeproj \
+            -scheme BarInventory \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          cd build/Build/Products/Release-iphoneos
+          mkdir Payload
+          cp -r BarInventory.app Payload/
+          zip -r BarInventory.ipa Payload
+          ls -la
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BarInventory-ipa
+          path: build/Build/Products/Release-iphoneos/BarInventory.ipa
+          retention-days: 30
