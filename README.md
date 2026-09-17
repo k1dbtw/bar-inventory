@@ -1,57 +1,98 @@
 # Bar Inventory
 
-A native iOS app for bartenders to track bar stock, expiration dates, and write-offs during a shift — designed to be usable one-handed in 1–3 seconds per action.
+Веб-приложение для бариста: остатки, списания и сроки годности продуктов на баре. Ставится на домашний экран iPhone как обычное приложение, уведомления приходят в Telegram.
 
-Built with **SwiftUI + SwiftData**, fully offline, no backend, no third-party dependencies.
+Стек: Next.js 15 (App Router) + TypeScript, Postgres (Neon) через Drizzle, Telegram Bot API. Без App Store, Xcode и Mac.
 
-**Don't own a Mac?** See [SIDELOADING.md](SIDELOADING.md) — GitHub Actions builds an installable `.ipa` on every push, no Xcode required on your end.
+## Что умеет
 
-## Requirements
+- **Главный экран** — сразу видно, что скоро испортится и что заканчивается, ниже весь список по категориям с поиском.
+- **Быстрые действия** — «+» и «−» прямо в строке продукта, тап по строке открывает шторку с крупными кнопками, списанием и правкой. Любое частое действие — 1–3 секунды.
+- **Списания с причиной** (просрочено / испортилось / разбили / ошибка), чтобы отчёт имел смысл.
+- **История** — все движения по дням с фильтрами.
+- **Отчёт** — сколько продуктов, что заканчивается, списания за неделю, что списывают чаще всего.
+- **Архив вместо удаления** — продукт убирается с глаз, история остаётся; удалить насовсем можно только из архива с отдельным подтверждением.
+- **Тёмная и светлая тема**, безопасные зоны под Dynamic Island и нижнюю полоску iPhone.
+- **Уведомления в Telegram**: мгновенно, когда продукт упал ниже порога, и раз в день — сводка по срокам и остаткам. В сообщении есть кнопки «+1» и «+5», чтобы поправить остаток не открывая приложение.
 
-- Xcode 16 or later
-- iOS 17.0+ deployment target
-- A Mac to build and run (Xcode Simulator or a physical iPhone)
+## Развёртывание (примерно 15 минут, всё из браузера)
 
-## Getting it onto your iPhone
+### 1. База данных
 
-1. Open `BarInventory.xcodeproj` in Xcode.
-2. Select the `BarInventory` target, go to **Signing & Capabilities**, and pick your personal Apple ID as the team (Xcode will manage provisioning automatically for free/personal accounts).
-3. Plug in your iPhone (or select it wirelessly), choose it as the run destination, and press **Run**.
-4. On first launch on-device, go to **Settings → General → VPN & Device Management** on the iPhone and trust your developer certificate if prompted.
+Зарегистрируйся на [neon.com](https://neon.com) (бесплатного тарифа хватает с запасом), создай проект и скопируй строку подключения — она выглядит как `postgresql://...`. Таблицы создадутся сами при первом запуске.
 
-The bundle identifier is `com.shoganai.barinventory` — change it in the target's Signing & Capabilities tab if it collides with something else on your account.
+### 2. Деплой на Vercel
 
-### If the project doesn't open cleanly
+1. Зайди на [vercel.com](https://vercel.com) через GitHub.
+2. **Add New → Project** → выбери репозиторий `bar-inventory` → **Import**.
+3. В разделе **Environment Variables** добавь:
 
-This `.xcodeproj` was authored by hand (this environment has no macOS/Xcode to verify the build), using Xcode 16's newer "file system synchronized groups" format so every file under `BarInventory/` is picked up automatically without listing each one individually. If Xcode complains when opening it:
+| Переменная | Значение |
+| --- | --- |
+| `DATABASE_URL` | строка подключения из Neon |
+| `ACCESS_CODE` | придумай код для входа (он же код привязки бота) |
+| `SESSION_SECRET` | любая длинная случайная строка |
+| `CRON_SECRET` | ещё одна случайная строка |
 
-1. Create a new project: **File → New → Project → iOS → App**, name it `BarInventory`, interface **SwiftUI**, storage **SwiftData**, bundle ID `com.shoganai.barinventory`.
-2. Delete the generated placeholder `Item.swift`/`ContentView.swift`.
-3. Drag the `BarInventory/Models`, `Persistence`, `Notifications`, `Utilities`, `Views`, and `BarInventoryApp.swift` from this repo into the new project (checking "Copy items if needed" and adding to the target).
-4. Replace the generated `Assets.xcassets` with the one from this repo, or just copy the `AccentColor.colorset` into your generated catalog.
-5. Build & run.
+4. **Deploy**. Через пару минут получишь адрес вида `https://bar-inventory-xxx.vercel.app`.
 
-## Architecture
+### 3. Telegram-бот
 
-- **Models** (`Models/`) — `Product` and `HistoryEntry` are the two SwiftData models. Enums (`ProductCategory`, `MeasurementUnit`, `WriteOffReason`, `HistoryChangeType`) drive icons, colors, and default step sizes.
-- **Persistence** (`Persistence/`) — `PersistenceController` builds the on-disk `ModelContainer`; `SampleData` seeds an in-memory container for previews.
-- **InventoryActions** (`Utilities/InventoryActions.swift`) — the single place that mutates a `Product`; every mutation is paired with a `HistoryEntry` so the audit trail can never drift from the data.
-- **Notifications** (`Notifications/NotificationManager.swift`) — schedules per-product expiration reminders, fires an instant local notification the moment a product crosses into low stock, and an optional daily check-in reminder.
-- **Views** (`Views/`) — one folder per screen (`Home`, `AddEditProduct`, `Dashboard`, `History`, `Settings`) plus `Components` for shared UI (cards, chips, badges) and `Root` for the tab bar.
+1. В Telegram открой [@BotFather](https://t.me/BotFather) → `/newbot` → придумай имя и username.
+2. Скопируй токен и добавь в Vercel ещё две переменные (Settings → Environment Variables), после чего нажми **Redeploy**:
 
-## Product behavior
+| Переменная | Значение |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | токен от BotFather |
+| `TELEGRAM_BOT_USERNAME` | username бота без `@` |
 
-- **No silent deletes.** "Deleting" a product from Home archives it (with a confirmation dialog) and keeps all of its history. Archived products live under **Settings → Archived Products**, where they can be restored or permanently deleted (a second, explicit confirmation).
-- **Quick actions everywhere.** Swipe a row for +1 / −1 / Write Off. Tap a row to open the quantity sheet with large +/− buttons sized to the product's unit. Long-press for a context menu (Adjust / Edit / Archive).
-- **Write-offs require a reason** (Expired / Spoiled / Broken / Mistake / Other) so the History and Dashboard write-off stats stay meaningful.
-- **Home surfaces what matters first**: an "Expiring Soon" carousel, a "Low Stock" carousel, then the full product list grouped by category — configurable in Settings (expiration window, reminder lead time).
+3. Открой в браузере `https://твой-адрес/api/telegram/setup?code=ТВОЙ_ACCESS_CODE` — это разово подключит вебхук. В ответ должно прийти `"ok": true`.
+4. Напиши боту `/start` и пришли свой `ACCESS_CODE`. Бот ответит, что чат привязан, и пришлёт ссылку для входа.
 
-## Notifications
+### 4. Уведомления по расписанию
 
-Bar Inventory only uses **local** notifications — nothing leaves the device:
+Vercel уже будет дёргать проверку раз в сутки (файл `vercel.json`). Чтобы сводка приходила точно в выбранный час, включи ещё почасовой пинг из GitHub Actions: в репозитории **Settings → Secrets and variables → Actions → New repository secret** добавь:
 
-- An expiration reminder fires N days (configurable, default 2) before a tracked product's expiration date.
-- A low-stock alert fires the instant a product's quantity drops to or below its threshold.
-- An optional daily reminder nudges you to open the app and do a stock check.
+- `APP_URL` — адрес приложения без слеша на конце;
+- `CRON_SECRET` — то же значение, что в Vercel.
 
-All three are opt-in from **Settings → Notifications**.
+Дальше workflow `Telegram digest` работает сам. Учти: GitHub отключает расписание, если в репозитории 60 дней нет активности — тогда достаточно зайти во вкладку Actions и включить его обратно.
+
+### 5. На iPhone
+
+1. Открой адрес приложения в Safari, введи `ACCESS_CODE`.
+2. **Поделиться → На экран «Домой»**.
+3. Запускай с иконки — приложение открывается на весь экран, без адресной строки.
+
+Обновления прилетают сами: пушишь код → Vercel пересобирает → приложение обновилось. Ничего переустанавливать не нужно.
+
+## Локальная разработка
+
+```bash
+npm install
+npm run dev
+```
+
+Без `DATABASE_URL` поднимается встроенный Postgres (PGlite) в папке `.pglite`, а без `ACCESS_CODE` вход открыт без кода — удобно для разработки. Остальные переменные см. в `.env.example`.
+
+Полезные команды:
+
+```bash
+npm run typecheck   # проверка типов
+npm run build       # продакшен-сборка
+node scripts/generate-icons.mjs   # перегенерировать иконки PWA
+```
+
+## Как устроено
+
+| Папка | Что внутри |
+| --- | --- |
+| `app/` | Страницы (главная, отчёт, история, настройки, архив, вход) и API-роуты |
+| `components/` | UI: строки продуктов, шторки, карточки, таб-бар |
+| `lib/domain.ts` | Категории, единицы, причины списания, форматирование, шаги +/− |
+| `lib/inventory.ts` | Все операции с продуктами: каждое изменение пишет запись в историю |
+| `lib/bot.ts` | Логика Telegram-бота и ежедневной сводки |
+| `lib/db/` | Схема Drizzle и создание таблиц при первом запуске |
+| `public/sw.js` | Service worker: мгновенный запуск и показ последних данных офлайн |
+
+Данные лежат в твоей базе Neon, никуда больше не отправляются. Уведомления идут только в привязанный Telegram-чат.

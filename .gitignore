@@ -1,23 +1,23 @@
-# Xcode
-build/
-DerivedData/
-*.pbxuser
-*.mode1v3
-*.mode2v3
-*.perspectivev3
-!default.pbxuser
-!default.mode1v3
-!default.mode2v3
-!default.perspectivev3
-xcuserdata/
-*.xccheckout
-*.moved-aside
-*.xcuserstate
-*.xcscmblueprint
+# dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# Swift Package Manager
-.build/
-.swiftpm/
+# next.js
+.next/
+out/
+next-env.d.ts
 
-# macOS
+# local database (PGlite)
+.pglite/
+
+# env
+.env
+.env*.local
+
+# misc
 .DS_Store
+*.pem
+npm-debug.log*
+.vercel
+*.tsbuildinfo
